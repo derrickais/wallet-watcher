@@ -12,9 +12,9 @@ request.onupgradeneeded = function(event) {
 request.onsuccess = function(event) {
   db = event.target.result;
 
-  if (navigator.onLine) {
+  if (!navigator.onLine) {
     // we haven't created this yet, but we will soon, so let's comment it out for now
-    // uploadPizza();
+    syncIndexDb();
   }
 };
 
@@ -27,6 +27,18 @@ function saveRecord(record) {
   const transaction = db.transaction(['transactionAppDataStore'], 'readwrite');
   const objectStore = transaction.objectStore('transactionAppDataStore');
   objectStore.add(record);
+}
+
+function loadIndexDb() {
+  const transaction = db.transaction(['transactionAppDataStore'], 'readwrite');
+  const objectStore = transaction.objectStore('transactionAppDataStore');
+  const getAll = objectStore.getAll();
+  getAll.onsuccess = function() {
+    transactions = getAll.result
+    populateTotal();
+    populateTable();
+    populateChart();
+  };
 }
 
 function syncIndexDb() {
@@ -53,9 +65,14 @@ fetch("/api/transaction")
     populateTotal();
     populateTable();
     populateChart();
+  }).catch(err => {
+    console.log('error!')
+    loadIndexDb();
+
   })
 
 function populateTotal() {
+  console.log('here: ', transactions)
   // reduce transaction amounts to a single total value
   let total = transactions.reduce((total, t) => {
     return total + parseInt(t.value);
@@ -149,6 +166,10 @@ function sendTransaction(isAdding) {
 }
 
 function addRecord(transaction) {
+  let nameEl = document.querySelector("#t-name");
+  let amountEl = document.querySelector("#t-amount");
+  let errorEl = document.querySelector(".form .error");
+  
   transactions.unshift(transaction);
   populateChart();
   populateTable();
