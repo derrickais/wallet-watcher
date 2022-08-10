@@ -1,6 +1,47 @@
 let transactions = [];
 let myChart;
 
+let db;
+const request = indexedDB.open('transactionAppData', 1);
+
+request.onupgradeneeded = function(event) {
+  const db = event.target.result;
+  db.createObjectStore('transactionAppDataStore', { autoIncrement: true });
+};
+
+request.onsuccess = function(event) {
+  db = event.target.result;
+
+  if (navigator.onLine) {
+    // we haven't created this yet, but we will soon, so let's comment it out for now
+    // uploadPizza();
+  }
+};
+
+request.onerror = function(event) {
+  console.log('IndexDB error: ', event.target.errorCode);
+};
+
+function saveRecord(record) {
+  console.log('saving record: ', record)
+  const transaction = db.transaction(['transactionAppDataStore'], 'readwrite');
+  const objectStore = transaction.objectStore('transactionAppDataStore');
+  objectStore.add(record);
+}
+
+function syncIndexDb() {
+  const transaction = db.transaction(['transactionAppDataStore'], 'readwrite');
+  const objectStore = transaction.objectStore('transactionAppDataStore');
+  const getAll = objectStore.getAll();
+  getAll.onsuccess = function() {
+    getAll.result.forEach(transaction => {
+      addRecord(transaction)
+    })
+  };
+}
+
+window.addEventListener('online', syncIndexDb);
+
 fetch("/api/transaction")
   .then(response => {
     return response.json();
@@ -12,7 +53,7 @@ fetch("/api/transaction")
     populateTotal();
     populateTable();
     populateChart();
-  });
+  })
 
 function populateTotal() {
   // reduce transaction amounts to a single total value
@@ -103,16 +144,15 @@ function sendTransaction(isAdding) {
   if (!isAdding) {
     transaction.value *= -1;
   }
+  
+  addRecord(transaction)
+}
 
-  // add to beginning of current array of data
+function addRecord(transaction) {
   transactions.unshift(transaction);
-
-  // re-run logic to populate ui with new record
   populateChart();
   populateTable();
   populateTotal();
-  
-  // also send to server
   fetch("/api/transaction", {
     method: "POST",
     body: JSON.stringify(transaction),
